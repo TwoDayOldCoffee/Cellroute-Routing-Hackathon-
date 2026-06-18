@@ -1,0 +1,7 @@
+Module 1 — Routing + Connectivity Engine
+Built a FastAPI server (main.py) running on port 8000 that accepts a POST /route request with an origin and destination, calls Valhalla 3 times to get 3 different routes (shortest with no highways/tolls, fastest with default auto costing, and most connected by trying 3 costing variations and picking the highest scoring one), decodes Valhalla's polyline encoding with precision 6, then sends each route's geometry to Module 2's server on port 8001 which returns per-segment signal data, colors, connectivity score, and drop zones. The final response returns all 3 fully annotated routes in the agreed JSON contract with geometry, distance, eta, connectivity_score, segments, and drop_zones.
+
+Module 2 integration — Module 2 runs as a separate FastAPI server on port 8001 built by a teammate. It loads a connectivity grid from cell tower CSV data and exposes /signal/score_route which takes sampled points and returns scored segments. Currently running locally on your machine since network connectivity between laptops failed due to different wifi networks.
+
+Current issues — Valhalla public instance rate limits parallel calls so requests are sequential with 0.3 second sleeps between them, making the total response time 6-8 seconds which is too slow for a demo. Decision made to self-host Valhalla locally using Docker to eliminate rate limiting and enable parallel calls.
+Next step — set up Valhalla locally with Docker.Sonnet 4.6
