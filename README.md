@@ -1,4 +1,4 @@
-# 📶 CellRoute
+# CellRoute
 
 **Network-Aware Navigation for Better Connectivity**
 
@@ -10,7 +10,7 @@ CellRoute is an intelligent routing system that calculates the best routes based
 
 ---
 
-## 🎯 Problem Statement
+## Problem Statement
 
 Traditional navigation apps optimize for distance or time, but ignore a critical factor: **cellular connectivity**. Dropped calls, interrupted video conferences, and failed GPS updates plague users who take routes through signal dead zones.
 
@@ -18,31 +18,31 @@ Traditional navigation apps optimize for distance or time, but ignore a critical
 
 ---
 
-## ✨ Features
+## Features
 
-### 🗺️ **Multi-Route Comparison**
+### **Multi-Route Comparison**
 - **Shortest Route**: Minimizes distance
 - **Fastest Route**: Minimizes travel time
 - **Most Connected Route**: Maximizes signal strength
 
-### 📊 **Real-Time Visualizations**
+### **Real-Time Visualizations**
 - **Signal Timeline**: See connectivity quality along your entire route
 - **Trade-off Chart**: Compare time vs connectivity at a glance
 - **Drop Zone Markers**: Identify areas with poor coverage
 
-### 🚗 **Journey Simulator**
+### **Journey Simulator**
 - Simulate your drive before you start
 - Watch signal strength change in real-time
 - Adjust playback speed (1x-10x)
 
-### 📡 **Data-Driven**
+### **Data-Driven**
 - **4,000+ cell towers** in Bangalore region
 - **OpenCellID** database integration
 - **3,907 grid cells** with coverage data
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────┐
@@ -74,7 +74,7 @@ Traditional navigation apps optimize for distance or time, but ignore a critical
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -115,8 +115,8 @@ python server.py
 ```
 **Output:**
 ```
-🚀  Loading connectivity grid …
-✅  Connectivity grid ready.
+Loading connectivity grid …
+Connectivity grid ready.
 INFO:     Uvicorn running on http://0.0.0.0:8001
 ```
 
@@ -147,7 +147,7 @@ http://localhost:8080/cellroute_final.html
 
 ---
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### Basic Usage
 
@@ -159,19 +159,19 @@ http://localhost:8080/cellroute_final.html
 
 ### Tips for Best Results
 
-✅ **DO:**
+**DO:**
 - Always add ", Bengaluru" or ", Bangalore" to location names
 - Use specific landmarks (e.g., "Koramangala 5th Block, Bengaluru")
 - Wait for all 3 routes to load before switching tabs
 
-❌ **DON'T:**
+**DON'T:**
 - Use abbreviations (EC, MG) alone
 - Enter locations outside Bangalore area
 - Click Route button multiple times rapidly
 
 ---
 
-## 🔧 API Documentation
+## API Documentation
 
 ### Module 1: Routing Engine
 
@@ -258,7 +258,7 @@ http://localhost:8080/cellroute_final.html
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ### Health Checks
 
@@ -287,7 +287,7 @@ curl -X POST http://localhost:8000/route \
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Issue: "Access blocked" on map tiles
 
@@ -335,7 +335,7 @@ app.add_middleware(
 
 ---
 
-## 📊 Data Sources
+## Data Sources
 
 - **Routing**: [Valhalla](https://valhalla.openstreetmap.de/) (Open-source routing engine)
 - **Cell Tower Data**: [OpenCellID](https://opencellid.org/) (Global cell tower database)
@@ -344,7 +344,7 @@ app.add_middleware(
 
 ---
 
-## 🎨 Technology Stack
+## Technology Stack
 
 ### Frontend
 - **HTML5/CSS3/JavaScript** (Vanilla JS - no frameworks)
@@ -360,7 +360,7 @@ app.add_middleware(
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 routing-project/
@@ -379,9 +379,9 @@ routing-project/
 
 ---
 
-## 🏆 Features Roadmap
+## Features Roadmap
 
-### Implemented ✅
+### Implemented 
 - [x] Multi-route comparison (Shortest/Fastest/Connected)
 - [x] Real-time signal scoring
 - [x] Journey simulator
@@ -389,7 +389,7 @@ routing-project/
 - [x] Interactive visualizations
 - [x] Weather impact display
 
-### Future Enhancements 🚧
+### Future Enhancements 
 - [ ] Multi-carrier support (Airtel, Jio, Vi)
 - [ ] Crowdsourced signal data
 - [ ] Offline mode
@@ -399,42 +399,7 @@ routing-project/
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! Here's how you can help:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 👥 Team
-
-**CellRoute Development Team**
-- Routing Engine: Module 1 Team
-- Connectivity Layer: Module 2 Team
-- Frontend & Integration: Module 4 Team
-
----
-
-## 📧 Contact
-
-For questions or feedback, please open an issue on GitHub or contact us at:
-- **Email**: cellroute@example.com
-- **GitHub**: [@cellroute](https://github.com/cellroute)
-
----
-
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - OpenStreetMap contributors for map data
 - OpenCellID for cell tower database
@@ -443,7 +408,7 @@ For questions or feedback, please open an issue on GitHub or contact us at:
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 ### Main Interface
 ![CellRoute Main Interface](docs/screenshots/main-interface.png)
@@ -455,7 +420,5 @@ For questions or feedback, please open an issue on GitHub or contact us at:
 ![Journey Simulator](docs/screenshots/journey-simulator.png)
 
 ---
-
-**Built with ❤️ in Bangalore, India**
 
 **For queries during hackathon evaluation, check the browser console (F12) for detailed logs!**
