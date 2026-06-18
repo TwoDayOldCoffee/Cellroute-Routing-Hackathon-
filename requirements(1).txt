@@ -1,0 +1,25 @@
+# CellRoute - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# API Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# HTTP Client
+httpx==0.25.2
+requests==2.31.0
+
+# Data Processing
+numpy==1.24.3
+pandas==2.0.3
+
+# Routing
+polyline==2.0.0
+
+# Environment Variables (for API keys)
+python-dotenv==1.0.0
+
+# Optional: Development tools
+# pytest==7.4.3
+# black==23.11.0
+# flake8==6.1.0

@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CellRoute — Network-Aware Navigation</title>
+  
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+  
+  <style>
+:root {
+  --blue: #4A90E2; --green: #52C41A; --orange: #FF9500; --red: #FF4D4F;
+  --bg: #F5F7FA; --border: #E8ECF0; --text: #2C3E50; --text-light: #8C8C8C;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+
+.header {
+  background: white; border-bottom: 1px solid var(--border); padding: 10px 20px;
+  display: flex; align-items: center; gap: 16px; height: 56px;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; white-space: nowrap; }
+.logo-icon { font-size: 22px; }
+
+.search-inputs { flex: 1; max-width: 500px; display: flex; gap: 10px; }
+.search-inputs input {
+  flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; font-family: inherit; transition: border-color 0.2s;
+}
+.search-inputs input:focus { outline: none; border-color: var(--blue); }
+
+.layer-panel {
+  position: absolute; top: 10px; left: 10px; z-index: 999;
+  background: white; border-radius: 8px; padding: 12px 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15); min-width: 180px;
+  font-size: 13px;
+}
+
+.layer-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  cursor: pointer; user-select: none;
+}
+
+.legend {
+  position: absolute; bottom: 30px; left: 10px; z-index: 999;
+  background: white; border-radius: 8px; padding: 10px 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15); font-size: 12px;
+  display: none; max-width: 200px;
+}
+
+.route-btn {
+  padding: 8px 20px; background: var(--blue); color: white; border: none; border-radius: 6px;
+  font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.2s; white-space: nowrap;
+}
+.route-btn:hover { background: #357ABD; }
+.route-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.weather-info {
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+  background: #FFF9E6; border-radius: 6px; font-size: 13px; white-space: nowrap;
+}
+
+.mode-switch { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.mode-switch label { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.mode-switch input[type="radio"] { width: 16px; height: 16px; cursor: pointer; }
+
+.main { display: flex; position: fixed; top: 56px; left: 0; right: 0; bottom: 0; }
+#map { flex: 1; }
+
+.sidebar {
+  width: 400px; background: white; border-left: 1px solid var(--border);
+  overflow-y: auto; display: flex; flex-direction: column;
+}
+
+.route-tabs { display: flex; border-bottom: 1px solid var(--border); background: #FAFAFA; }
+.route-tab {
+  flex: 1; padding: 14px; text-align: center; border: none; background: transparent;
+  cursor: pointer; font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.5px; transition: all 0.2s; border-bottom: 3px solid transparent;
+}
+.route-tab:hover { background: white; }
+.route-tab.active { background: white; color: var(--blue); }
+.route-tab.tab-shortest.active { border-bottom-color: var(--blue); color: var(--blue); }
+.route-tab.tab-fastest.active { border-bottom-color: var(--green); color: var(--green); }
+.route-tab.tab-connected.active { border-bottom-color: var(--orange); color: var(--orange); }
+
+.route-tab-score {
+  font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+  display: block; margin-top: 4px;
+}
+
+.route-details { padding: 20px; border-bottom: 1px solid var(--border); }
+.route-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.stat-box { text-align: center; }
+.stat-value {
+  font-size: 28px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--blue);
+}
+.stat-label {
+  font-size: 11px; color: var(--text-light); text-transform: uppercase;
+  letter-spacing: 0.5px; margin-top: 4px;
+}
+
+.drop-zones {
+  background: #FFF1F0; border: 1px solid #FFCCC7; border-radius: 8px; padding: 12px;
+}
+.drop-zone-header {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--red); margin-bottom: 10px;
+}
+.drop-zone-item {
+  background: white; border-radius: 6px; padding: 10px; margin-bottom: 8px; font-size: 13px;
+}
+.drop-zone-item:last-child { margin-bottom: 0; }
+.drop-zone-name { font-weight: 600; margin-bottom: 4px; }
+.drop-zone-info { color: var(--text-light); font-size: 12px; }
+
+.chart-section { padding: 20px; border-bottom: 1px solid var(--border); }
+.chart-title {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-light); margin-bottom: 14px;
+}
+.chart-container { height: 180px; position: relative; }
+
+.simulator {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white; padding: 20px;
+}
+.sim-title {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 16px; opacity: 0.9;
+}
+.signal-gauge { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.gauge-label {
+  font-size: 11px; opacity: 0.8; margin-bottom: 8px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.gauge-bar {
+  height: 30px; background: rgba(0,0,0,0.2); border-radius: 6px;
+  overflow: hidden; margin-bottom: 10px;
+}
+.gauge-fill {
+  height: 100%; background: linear-gradient(90deg, #FF4D4F, #FF9500, #52C41A);
+  border-radius: 6px; transition: width 0.3s; width: 0%;
+}
+.gauge-value {
+  text-align: center; font-size: 32px; font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.sim-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.sim-stat { background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; text-align: center; }
+.sim-stat-label {
+  font-size: 10px; opacity: 0.7; text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 6px;
+}
+.sim-stat-value { font-size: 18px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+.sim-controls { display: flex; gap: 8px; }
+.sim-btn {
+  flex: 1; padding: 10px; border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.1); color: white; border-radius: 6px;
+  font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;
+}
+.sim-btn:hover { background: rgba(255,255,255,0.2); }
+.sim-btn.primary { background: white; color: #667eea; border-color: white; }
+
+.sim-speed {
+  padding: 8px 12px; border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.1); color: white; border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
+}
+
+.alerts-section { padding: 20px; }
+.alerts-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.alerts-title {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-light);
+}
+
+.alert-item {
+  background: #FFF9E6; border: 1px solid #FFE7BA; border-radius: 8px;
+  padding: 12px; margin-bottom: 10px; display: flex; gap: 10px;
+}
+.alert-icon { font-size: 18px; }
+.alert-content { flex: 1; }
+.alert-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.alert-message { font-size: 12px; color: var(--text-light); margin-bottom: 4px; }
+.alert-time { font-size: 11px; color: var(--text-light); }
+
+.loading {
+  position: fixed; inset: 56px 0 0 0; background: rgba(255,255,255,0.95);
+  display: none; align-items: center; justify-content: center; z-index: 999;
+  flex-direction: column; gap: 16px;
+}
+.loading.active { display: flex; }
+
+.spinner {
+  width: 40px; height: 40px; border: 3px solid var(--border);
+  border-top-color: var(--blue); border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state { padding: 60px 30px; text-align: center; color: var(--text-light); }
+.empty-icon { font-size: 64px; margin-bottom: 16px; opacity: 0.3; }
+.empty-text { font-size: 15px; line-height: 1.6; }
+
+.drop-marker {
+  width: 14px; height: 14px; background: var(--red); border: 3px solid white;
+  border-radius: 50%; box-shadow: 0 2px 8px rgba(255, 77, 79, 0.5);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+}
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <span class="logo-icon">📶</span>
+    <span>CellRoute</span>
+  </div>
+  
+  <div class="search-inputs">
+    <input type="text" id="origin" placeholder="📍 MG Road, Bengaluru" value="MG Road, Bengaluru" />
+    <input type="text" id="destination" placeholder="🎯 Electronic City, Bengaluru" value="Electronic City, Bengaluru" />
+  </div>
+  
+  <button class="route-btn" id="routeBtn">▶ Route</button>
+  
+  <div class="weather-info" id="weather">
+    <span id="weatherIcon">⛅</span>
+    <span id="weatherText">28°C · Light Rain</span>
+  </div>
+  
+  <button class="route-btn" id="dropZoneToggle" style="background: #6c757d;">⚠ Drop Zones: OFF</button>
+
+  <div class="mode-switch">
+    <label>
+      <input type="radio" name="mode" value="normal" checked />
+      🧭 NORMAL
+    </label>
+    <label>
+      <input type="radio" name="mode" value="emergency" />
+      🚨 EMERGENCY
+    </label>
+  </div>
+</header>
+
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div style="font-weight: 600;">Calculating routes...</div>
+  <div style="font-size: 13px; color: var(--text-light);">Module 1 → Valhalla → Module 2</div>
+</div>
+
+<div class="main">
+  <div id="map">
+    <div class="layer-panel">
+      <div class="layer-panel-title">🗂 Map Layers</div>
+        <label class="layer-item">
+          <input type="checkbox" id="tog-towers">
+          <span class="layer-item-label">📍 Cell Towers</span>
+        </label>
+        <label class="layer-item">
+          <input type="checkbox" id="tog-heatmap">
+          <span class="layer-item-label">🔥 Signal Heatmap</span>
+        </label>
+    </div>
+  </div>
+
+  <div id="tower-legend" style="position:absolute;bottom:160px;left:10px;z-index:1000;background:white;border-radius:8px;padding:10px 14px;box-shadow:0 2px 10px rgba(0,0,0,0.15);font-size:12px;display:none;">
+    <div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;color:#2C3E50;">📍 Cell Towers</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><div style="width:10px;height:10px;border-radius:50%;background:#9B59B6;border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.2);"></div><span>5G / NR</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><div style="width:10px;height:10px;border-radius:50%;background:#3498DB;border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.2);"></div><span>4G / LTE</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><div style="width:10px;height:10px;border-radius:50%;background:#F39C12;border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.2);"></div><span>3G / UMTS</span></div>
+    <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#E74C3C;border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.2);"></div><span>2G / GSM</span></div>
+  </div>
+  
+  <div class="sidebar">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🗺️</div>
+      <div class="empty-text">
+        <strong>Enter origin and destination</strong><br>
+        to find connectivity-aware routes
+      </div>
+    </div>
+    
+    <div id="routeTabs" style="display: none;">
+      <div class="route-tabs">
+        <button class="route-tab tab-shortest active" data-index="0">
+          <div>SHORTEST</div>
+          <div class="route-tab-score" id="score0">--</div>
+        </button>
+        <button class="route-tab tab-fastest" data-index="1">
+          <div>FASTEST</div>
+          <div class="route-tab-score" id="score1">--</div>
+        </button>
+        <button class="route-tab tab-connected" data-index="2">
+          <div>CONNECTED</div>
+          <div class="route-tab-score" id="score2">--</div>
+        </button>
+      </div>
+      
+      <div class="route-details">
+        <div class="route-stats">
+          <div class="stat-box">
+            <div class="stat-value" id="distance">--</div>
+            <div class="stat-label">DISTANCE</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="eta">--</div>
+            <div class="stat-label">ETA</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="dropZoneCount">--</div>
+            <div class="stat-label">DROP ZONES</div>
+          </div>
+        </div>
+        
+        <div id="dropZonesList" class="drop-zones" style="display: none;"></div>
+
+        <button id="aiAnalyzeBtn" onclick="App.analyzeTradeoffs()" style="width:100%;padding:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;margin-top:12px;">✨ AI Tradeoff Analysis</button>
+        <div id="aiAnalysis" style="display:none;margin-top:12px;padding:12px;background:#F8F5FF;border:1px solid #D9CCFF;border-radius:8px;font-size:13px;line-height:1.6;color:#2C3E50;"></div>
+      </div>
+      
+      <div class="chart-section">
+        <div class="chart-title">📈 SIGNAL TIMELINE</div>
+        <div class="chart-container">
+          <canvas id="timelineChart"></canvas>
+        </div>
+      </div>
+      
+      <div class="chart-section">
+        <div class="chart-title">⚖️ TIME VS. CONNECTIVITY</div>
+        <div class="chart-container">
+          <canvas id="tradeoffChart"></canvas>
+        </div>
+      </div>
+      
+      <div class="simulator">
+        <div class="sim-title">🚗 JOURNEY SIMULATOR</div>
+        <div class="signal-gauge">
+          <div class="gauge-label">CURRENT SIGNAL STRENGTH</div>
+          <div class="gauge-bar">
+            <div class="gauge-fill" id="gaugeFill"></div>
+          </div>
+          <div class="gauge-value" id="gaugeValue">0%</div>
+        </div>
+        <div class="sim-stats">
+          <div class="sim-stat">
+            <div class="sim-stat-label">DISTANCE</div>
+            <div class="sim-stat-value" id="simDist">0.0 km</div>
+          </div>
+          <div class="sim-stat">
+            <div class="sim-stat-label">TIME</div>
+            <div class="sim-stat-value" id="simTime">0:00</div>
+          </div>
+          <div class="sim-stat">
+            <div class="sim-stat-label">ETA</div>
+            <div class="sim-stat-value" id="simETA">--</div>
+          </div>
+        </div>
+        <div class="sim-controls">
+          <button class="sim-btn primary" id="simPlay">▶ Start</button>
+          <button class="sim-btn" id="simPause" style="display: none;">⏸ Pause</button>
+          <button class="sim-btn" id="simReset">↻ Reset</button>
+          <select class="sim-speed" id="simSpeed">
+            <option value="1">1x</option>
+            <option value="2">2x</option>
+            <option value="5" selected>5x</option>
+            <option value="10">10x</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="chart-section" id="ispCompareSection" style="display:none;">
+        <div class="chart-title">📱 ISP SIGNAL COMPARISON</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <select id="isp1Select" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:white;">
+            <option value="">SIM 1</option>
+            <option value="Jio">Jio</option>
+            <option value="Airtel">Airtel</option>
+            <option value="Vi">Vi</option>
+            <option value="BSNL">BSNL</option>
+          </select>
+          <select id="isp2Select" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:white;">
+            <option value="">SIM 2 (optional)</option>
+            <option value="Jio">Jio</option>
+            <option value="Airtel">Airtel</option>
+            <option value="Vi">Vi</option>
+            <option value="BSNL">BSNL</option>
+          </select>
+          <button onclick="App.renderISPChart()" style="padding:6px 14px;background:var(--blue);color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">Compare</button>
+        </div>
+        <div class="chart-container">
+          <canvas id="ispChart"></canvas>
+        </div>
+        <div id="ispLegend" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;"></div>
+        <div id="ispRecommendation" style="display:none;margin-top:10px;padding:10px;background:#F0FFF0;border:1px solid #B7EB8F;border-radius:8px;font-size:12px;line-height:1.5;color:#2C3E50;"></div>
+      </div>
+      
+      <div class="alerts-section">
+        <div class="alerts-header">
+          <div class="alerts-title">📢 COMMUNITY ALERTS</div>
+          <button onclick="App.openAlertModal()" style="padding:4px 12px;background:#4A90E2;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">+ Report</button>
+          <button onclick="App.clearAllAlertPins()" style="padding:4px 12px;background:#f0f0f0;color:#333;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">Clear Pins</button>
+        </div>
+        <div id="alertsList">
+          <div style="text-align:center;padding:20px;color:#8C8C8C;font-size:13px;">Loading alerts...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  CELLROUTE — FINAL PRODUCTION (MODULE 1 + MODULE 2 INTEGRATION)
+// ═══════════════════════════════════════════════════════════════
+
+const MODULE1_URL = 'http://localhost:8000';  // Routing + Orchestration
+
+const App = {
+  map: null,
+  routes: [],
+  activeRoute: 0,
+  charts: {},
+  simulator: { active: false, progress: 0, speed: 5, interval: null },
+  layers: { routes: [], heatmap: [], dropZones: null, simMarker: null, markers: null, alertPins: {}, towers: null, heatmapLayer: null },
+  towersVisible: false,
+  heatmapVisible: false,
+  towerData: [],
+  
+  init() {
+    this.initMap();
+    this.bindEvents();
+    this.fetchWeather();
+    this.fetchAlerts();
+  },
+  
+  initMap() {
+    this.map = L.map('map').setView([12.9716, 77.5946], 12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 20
+    }).addTo(this.map);
+    this.layers.dropZones = L.layerGroup();
+    this.layers.markers = L.layerGroup().addTo(this.map);
+    this.addLegend();
+  },
+
+  addLegend() {
+    const legend = L.control({ position: 'bottomleft' });
+    legend.onAdd = () => {
+      const div = L.DomUtil.create('div');
+      div.innerHTML =
+        '<div style="background:white;padding:10px 14px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-family:Inter,sans-serif;font-size:12px;min-width:165px;">' +
+          '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#8C8C8C;margin-bottom:8px;">📶 Signal Strength</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><div style="width:28px;height:5px;border-radius:3px;background:#52C41A;flex-shrink:0;"></div><span style="color:#2C3E50;">Strong (&ge; 70%)</span></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><div style="width:28px;height:5px;border-radius:3px;background:#FF9500;flex-shrink:0;"></div><span style="color:#2C3E50;">Moderate (40–70%)</span></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><div style="width:28px;height:5px;border-radius:3px;background:#FF4D4F;flex-shrink:0;"></div><span style="color:#2C3E50;">Weak (&lt; 40%)</span></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#aaa;opacity:0.5;flex-shrink:0;margin-left:9px;"></div><span style="color:#8C8C8C;">Other routes</span></div>' +
+        '</div>';
+      return div;
+    };
+    legend.addTo(this.map);
+  },
+  
+  bindEvents() {
+    document.getElementById('routeBtn').addEventListener('click', () => this.fetchRoutes());
+    document.getElementById('origin').addEventListener('keypress', e => {
+      if (e.key === 'Enter') this.fetchRoutes();
+    });
+    document.getElementById('destination').addEventListener('keypress', e => {
+      if (e.key === 'Enter') this.fetchRoutes();
+    });
+    
+    document.querySelectorAll('.route-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const idx = parseInt(tab.dataset.index);
+        this.selectRoute(idx);
+      });
+    });
+    
+    document.getElementById('simPlay').addEventListener('click', () => this.startSim());
+    document.getElementById('simPause').addEventListener('click', () => this.pauseSim());
+    document.getElementById('simReset').addEventListener('click', () => this.resetSim());
+
+    console.log('showing legend');
+    document.getElementById('tog-towers').addEventListener('change', () => this.toggleTowers());
+    document.getElementById('tog-heatmap').addEventListener('change', () => this.toggleHeatmap());
+    
+    document.getElementById('dropZoneToggle').addEventListener('click', () => {
+      const btn = document.getElementById('dropZoneToggle');
+      if (this.map.hasLayer(this.layers.dropZones)) {
+        this.map.removeLayer(this.layers.dropZones);
+        btn.style.background = '#6c757d';
+        btn.textContent = '⚠ Drop Zones: OFF';
+      } else {
+        this.layers.dropZones.addTo(this.map);
+        btn.style.background = '#FF4D4F';
+        btn.textContent = '⚠ Drop Zones: ON';
+      }
+    });
+
+    document.getElementById('simSpeed').addEventListener('change', e => {
+      this.simulator.speed = parseFloat(e.target.value);
+    });
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        if (e.target.value === 'emergency' && this.routes.length > 0) {
+          this.selectRoute(1); // index 1 = fastest
+        }
+      });
+    });
+  },
+  
+  async geocode(query) {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`);
+      const data = await res.json();
+      if (data.length > 0) {
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      }
+    } catch (e) {
+      console.error('Geocode error:', e);
+    }
+    return null;
+  },
+  
+  async fetchWeather() {
+    try {
+      const res = await fetch('https://api.openweathermap.org/data/2.5/weather?lat=12.9716&lon=77.5946&appid=37bba40fbda144752e9d5408e51eec08&units=metric');
+      const data = await res.json();
+      const temp = Math.round(data.main.temp);
+      const condition = data.weather[0].main;
+      document.getElementById('weatherText').textContent = `${temp}°C · ${condition}`;
+    } catch (e) {
+      console.log('Weather API error:', e);
+    }
+  },
+  
+  async fetchRoutes() {
+    const originText = document.getElementById('origin').value.trim();
+    const destText = document.getElementById('destination').value.trim();
+    
+    if (!originText || !destText) {
+      alert('Please enter both origin and destination');
+      return;
+    }
+    
+    document.getElementById('loading').classList.add('active');
+    
+    try {
+      // Step 1: Geocode origin
+      console.log('🔍 Geocoding origin:', originText);
+      const origin = await this.geocode(originText);
+      if (!origin) {
+        throw new Error(`Could not find location: "${originText}"\n\nTry:\n- Adding "Bengaluru" or "Bangalore"\n- Being more specific (e.g., "MG Road, Bengaluru")`);
+      }
+      console.log('✅ Origin:', origin);
+      
+      // Step 2: Geocode destination
+      console.log('🔍 Geocoding destination:', destText);
+      const dest = await this.geocode(destText);
+      if (!dest) {
+        throw new Error(`Could not find location: "${destText}"\n\nTry:\n- Adding "Bengaluru" or "Bangalore"\n- Being more specific (e.g., "Electronic City, Bengaluru")`);
+      }
+      console.log('✅ Destination:', dest);
+      
+      // Step 3: Call Module 1
+      console.log('🚗 Calling Module 1 for routes...');
+      const response = await fetch(`${MODULE1_URL}/route`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin: { lat: origin.lat, lng: origin.lng },
+          destination: { lat: dest.lat, lng: dest.lng }
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Module 1 error:', errorText);
+        throw new Error('Module 1 API error. Check Terminal 1 for details.');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Received routes:', data);
+      
+      // Step 4: Process routes
+      if (!data.routes || data.routes.length === 0) {
+        throw new Error('No routes returned from Module 1');
+      }
+      
+      // Convert dBm to percentage
+      this.routes = data.routes.map(route => ({
+        ...route,
+        segments: route.segments.map(seg => ({
+          ...seg,
+          signalPct: this.dbmToPercent(seg.signal)
+        }))
+      }));
+      
+      console.log('✅ Processed routes:', this.routes);
+      
+      this.renderRoutes();
+      this.drawMap(origin, dest);
+      this.renderCharts();
+      this.showSidebar();
+      
+    } catch (error) {
+      console.error('❌ Error:', error);
+      alert(error.message || 'Error fetching routes');
+    } finally {
+      document.getElementById('loading').classList.remove('active');
+    }
+  },
+  
+  // Convert dBm (-120 to -60) to percentage (0-100)
+  dbmToPercent(dbm) {
+    return Math.round(Math.max(0, Math.min(100, ((dbm - (-120)) / ((-60) - (-120))) * 100)));
+  },
+  
+  async analyzeTradeoffs() {
+    if (!this.routes.length) return;
+    
+    const btn = document.getElementById('aiAnalyzeBtn');
+    const output = document.getElementById('aiAnalysis');
+    btn.textContent = '⏳ Analyzing...';
+    btn.disabled = true;
+    output.style.display = 'none';
+
+    const [shortest, fastest, connected] = this.routes;
+
+    const formatRoute = (r, name) => {
+      const dzCount = r.drop_zone_count || r.drop_zones?.length || 0;
+      const tunnels = r.drop_zones?.filter(dz => dz.is_tunnel).length || 0;
+      const avgSignal = r.avg_signal_dbm ? `${r.avg_signal_dbm.toFixed(1)} dBm` : 'unknown';
+      const frac4g = r.fraction_4g5g ? `${Math.round(r.fraction_4g5g * 100)}%` : 'unknown';
+      return `${name}: ${r.distance.toFixed(1)}km, ${r.eta} mins, connectivity score ${Math.round(r.connectivity_score)}/100, ${dzCount} dead zone(s) (${tunnels} tunnel(s)), average signal ${avgSignal}, 4G/5G coverage ${frac4g} of route.`;
+    };
+
+    const prompt = `You are a navigation assistant helping a user choose a route in Bangalore. Analyze these 3 routes and give a practical recommendation in 4-5 sentences. Mention specific tradeoffs like dead zones, tunnel blackouts, signal quality, and whether the time difference is worth the connectivity gain or loss. Be conversational, not technical.
+
+    ${formatRoute(shortest, 'Shortest route')}
+    ${formatRoute(fastest, 'Fastest route')}
+    ${formatRoute(connected, 'Most connected route')}
+
+    Focus on: which route has the worst dead zones, whether tunnels cause blackouts, and your final recommendation.`;
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyDYf1HdTpFcwMrPv2qHBZcXfBYzTJp7zvM`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+      const data = await res.json();
+      const text = data.candidates[0].content.parts[0].text;
+      output.textContent = text;
+      output.style.display = 'block';
+    } catch(e) {
+      output.textContent = 'Analysis failed. Check your API key.';
+      output.style.display = 'block';
+    } finally {
+      btn.textContent = '✨ AI Tradeoff Analysis';
+      btn.disabled = false;
+    }
+  },
+
+  renderRoutes() {
+    this.routes.forEach((route, idx) => {
+      const score = Math.round(route.connectivity_score || 50);
+      const scoreEl = document.getElementById(`score${idx}`);
+      if (scoreEl) {
+        scoreEl.textContent = score + '/100';
+        scoreEl.style.color = score >= 70 ? 'var(--green)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
+      }
+    });
+    
+    this.selectRoute(0);
+  },
+
+  async updateISPScore() {
+    await this.fetchTowerData();
+
+    const operator = document.getElementById('ispFilter').value;
+    const panel = document.getElementById('ispScorePanel');
+    
+    if (operator === 'all' || !this.routes.length || !this.towerData.length) {
+      panel.style.display = 'none';
+      return;
+    }
+    
+    const score = this.getISPScore(this.activeRoute);
+    
+    if (score === null) {
+      panel.style.display = 'block';
+      document.getElementById('ispScoreValue').textContent = 'N/A';
+      document.getElementById('ispScoreLabel').textContent = `No ${operator} towers found near this route`;
+      return;
+    }
+    
+    const color = score >= 70 ? 'var(--green)' : score >= 40 ? 'var(--orange)' : 'var(--red)';
+    panel.style.display = 'block';
+    document.getElementById('ispScoreValue').textContent = score + '%';
+    document.getElementById('ispScoreValue').style.color = color;
+    document.getElementById('ispScoreLabel').textContent = `Average ${operator} signal strength on this route`;
+  },
+  
+  selectRoute(idx) {
+    this.activeRoute = idx;
+    const route = this.routes[idx];
+    
+    document.querySelectorAll('.route-tab').forEach((tab, i) => {
+      tab.classList.toggle('active', i === idx);
+    });
+    
+    document.getElementById('distance').textContent = route.distance.toFixed(1) + ' km';
+    document.getElementById('eta').textContent = route.eta + ' min';
+    
+    const dzCount = route.drop_zone_count || route.drop_zones?.length || 0;
+    document.getElementById('dropZoneCount').textContent = dzCount;
+    
+    const dzList = document.getElementById('dropZonesList');
+    if (route.drop_zones && route.drop_zones.length > 0) {
+      dzList.style.display = 'block';
+      dzList.innerHTML = '<div class="drop-zone-header">⚠️ DEAD ZONES</div>' +
+        route.drop_zones.map((dz, i) => `
+          <div class="drop-zone-item">
+            <div class="drop-zone-name">Drop Zone ${i + 1}</div>
+            <div class="drop-zone-info">
+              ${dz.is_tunnel ? '🚇 Tunnel' : '📡 Low signal'} · 
+              ${dz.start ? `${dz.start.lat.toFixed(4)}, ${dz.start.lng.toFixed(4)}` : 'Location data'}
+            </div>
+          </div>
+        `).join('');
+    } else {
+      dzList.style.display = 'none';
+    }
+    
+    this.renderCharts();
+    this.resetSim();
+    this.highlightRoute();
+
+    this.updateISPScore()
+
+    if (this.towersVisible) this.toggleTowers();
+    if (this.heatmapVisible) this.toggleHeatmap();
+  },
+  
+  getISPScore(routeIdx) {
+    const operator = document.getElementById('ispFilter').value;
+    if (operator === 'all') return null;
+    
+    const route = this.routes[routeIdx];
+    const nearby = this.towersNearRoute(0.5);
+    const filtered = nearby.filter(t => t.operator === operator);
+    
+    if (!filtered.length) return null;
+    
+    const signals = filtered.map(t => Math.max(0, Math.min(100, (t.signal_dbm + 120) / 60 * 100)));
+    return Math.round(signals.reduce((a, b) => a + b, 0) / signals.length);
+  },
+
+  // Returns the heatmap color for a given signal percentage
+  signalColor(pct) {
+    if (pct >= 70) return '#52C41A';   // green
+    if (pct >= 40) return '#FF9500';   // orange
+    return '#FF4D4F';                   // red
+  },
+
+  // Draw the heatmap (colored segments) for one route
+  drawHeatmap(routeIdx) {
+    // Remove old heatmap layers
+    this.layers.heatmap.forEach(l => this.map.removeLayer(l));
+    this.layers.heatmap = [];
+
+    const route = this.routes[routeIdx];
+    const segs = route.segments;
+    if (!segs || segs.length < 2) return;
+
+    // How many geometry points per segment sample
+    const geom = route.geometry;
+    const ratio = geom.length / segs.length;
+
+    for (let i = 0; i < segs.length - 1; i++) {
+      const pct = segs[i].signalPct ?? 50;
+      const color = this.signalColor(pct);
+
+      // Map segment index to geometry index range
+      const g0 = Math.round(i * ratio);
+      const g1 = Math.min(Math.round((i + 1) * ratio) + 1, geom.length - 1);
+      const pts = geom.slice(g0, g1 + 1).map(p => [p.lat, p.lng]);
+      if (pts.length < 2) continue;
+
+      const pl = L.polyline(pts, {
+        color,
+        weight: 6,
+        opacity: 1,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
+      pl.bindTooltip(`Signal: ${pct}% (${segs[i].signal} dBm)`, { sticky: true });
+      pl.on('click', () => this.selectRoute(routeIdx));
+      pl.addTo(this.map);
+      this.layers.heatmap.push(pl);
+    }
+  },
+
+  drawMap(origin, dest) {
+    // Clear old layers
+    this.layers.routes.forEach(l => this.map.removeLayer(l));
+    this.layers.routes = [];
+    this.layers.heatmap.forEach(l => this.map.removeLayer(l));
+    this.layers.heatmap = [];
+    this.layers.dropZones.clearLayers();
+    this.layers.markers.clearLayers();
+    if (this.layers.simMarker) { this.map.removeLayer(this.layers.simMarker); this.layers.simMarker = null; }
+
+    // Draw inactive routes as dimmed gray polylines (behind heatmap)
+    this.routes.forEach((route, idx) => {
+      if (idx === this.activeRoute) return;
+      const coords = route.geometry.map(p => [p.lat, p.lng]);
+      const pl = L.polyline(coords, { color: '#aaa', weight: 4, opacity: 0.35 });
+      pl.on('click', () => this.selectRoute(idx));
+      pl.addTo(this.map);
+      this.layers.routes.push({ layer: pl, routeIdx: idx });
+    });
+
+    // Draw the active route as a signal-colored heatmap
+    this.drawHeatmap(this.activeRoute);
+
+    // Drop zone markers
+    this._renderDropZoneMarkers();
+
+    // Origin / destination pins
+    const pinHtml = (bg) =>
+      `<div style="width:16px;height:16px;background:${bg};border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`;
+    L.marker([origin.lat, origin.lng], { icon: L.divIcon({ html: pinHtml('#52C41A'), iconSize: [16,16], iconAnchor: [8,8] }) }).addTo(this.layers.markers);
+    L.marker([dest.lat, dest.lng],   { icon: L.divIcon({ html: pinHtml('#FF4D4F'), iconSize: [16,16], iconAnchor: [8,8] }) }).addTo(this.layers.markers);
+    const allCoords = this.routes.flatMap(r => r.geometry.map(p => [p.lat, p.lng]));
+    if (allCoords.length) this.map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
+  },
+
+  _renderDropZoneMarkers() {
+    this.layers.dropZones.clearLayers();
+    const route = this.routes[this.activeRoute];
+    if (!route.drop_zones) return;
+    route.drop_zones.forEach((dz, i) => {
+      const lat = dz.start ? dz.start.lat : dz.lat;
+      const lng = dz.start ? dz.start.lng : dz.lng;
+      if (!lat || !lng) return;
+      const icon = L.divIcon({ className: '', html: '<div class="drop-marker"></div>', iconSize: [14,14], iconAnchor: [7,7] });
+      L.marker([lat, lng], { icon })
+        .bindPopup(`<b>⚠️ Drop Zone ${i + 1}</b><br>${dz.is_tunnel ? 'Tunnel' : 'Low coverage'}`)
+        .addTo(this.layers.dropZones);
+    });
+  },
+
+  towerColor(type) {
+    const t = (type || '').toUpperCase();
+    if (t.includes('NR')) return '#9B59B6';
+    if (t.includes('LTE')) return '#3498DB';
+    if (t.includes('UMTS')) return '#F39C12';
+    return '#E74C3C';
+  },
+
+  async toggleTowers() {
+    const cb = document.getElementById('tog-towers');
+    this.towersVisible = cb.checked;
+    if (!this.towersVisible) {
+      if (this.layers.towers) { this.map.removeLayer(this.layers.towers); this.layers.towers = null; }
+      document.getElementById('tower-legend').style.display = 'none';
+      return;
+    }
+    if (!this.routes.length) { alert('Calculate a route first'); cb.checked = false; this.towersVisible = false; return; }
+    await this.fetchTowerData();
+    const nearby = this.towersNearRoute(0.5);
+    if (!nearby.length) { alert('No towers found near this route'); cb.checked = false; this.towersVisible = false; return; }
+    if (this.layers.towers) { this.map.removeLayer(this.layers.towers); this.layers.towers = null; }
+    const group = L.layerGroup();
+    nearby.forEach(t => {
+      const color = this.towerColor(t.network_type);
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:10px;height:10px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [10,10], iconAnchor: [5,5]
+      });
+      L.marker([t.lat, t.lng], { icon })
+        .bindPopup(`<b>${t.network_type} Tower</b><br>Signal: ${t.signal_dbm} dBm<br>Confidence: ${t.confidence}`)
+        .addTo(group);
+    });
+    group.addTo(this.map);
+    this.layers.towers = group;
+    document.getElementById('tower-legend').style.display = 'block';
+  },
+
+  getISPSignalAlongRoute(operator) {
+    const route = this.routes[this.activeRoute];
+    const geom = route.geometry;
+    
+    return geom.map(point => {
+      const nearby = this.towerData
+        .filter(t => t.operator === operator)
+        .map(t => ({ t, d: this.haversine({lat: t.lat, lng: t.lng}, point) }))
+        .filter(x => x.d < 0.5)
+        .sort((a, b) => a.d - b.d);
+      
+      if (!nearby.length) return null;
+      return Math.max(0, Math.min(100, (nearby[0].t.signal_dbm + 120) / 60 * 100));
+    });
+  },
+
+  async renderISPChart() {
+    if (!this.routes.length) { alert('Calculate a route first'); return; }
+    await this.fetchTowerData();
+
+    const isp1 = document.getElementById('isp1Select').value;
+    const isp2 = document.getElementById('isp2Select').value;
+
+    if (!isp1) { alert('Select at least SIM 1'); return; }
+
+    const route = this.routes[this.activeRoute];
+    const geom = route.geometry;
+    const labels = geom.map((_, i) =>
+      parseFloat(((i / geom.length) * route.distance).toFixed(2))
+    );
+
+    const ISP_COLORS = {
+      'Jio': '#0066CC',
+      'Airtel': '#CC0000',
+      'Vi': '#FF0080',
+      'BSNL': '#FF8C00'
+    };
+
+    const sig1 = this.getISPSignalAlongRoute(isp1);
+    const datasets = [{
+      label: isp1,
+      data: sig1,
+      borderColor: ISP_COLORS[isp1] || '#4A90E2',
+      backgroundColor: (ISP_COLORS[isp1] || '#4A90E2') + '22',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      spanGaps: true,
+      pointRadius: 0,
+    }];
+
+    if (isp2 && isp2 !== isp1) {
+      const sig2 = this.getISPSignalAlongRoute(isp2);
+      datasets.push({
+        label: isp2,
+        data: sig2,
+        borderColor: ISP_COLORS[isp2] || '#52C41A',
+        backgroundColor: (ISP_COLORS[isp2] || '#52C41A') + '22',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        spanGaps: true,
+        pointRadius: 0,
+      });
+    }
+
+    if (this.charts.isp) this.charts.isp.destroy();
+    const ctx = document.getElementById('ispChart').getContext('2d');
+    this.charts.isp = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: {
+            type: 'linear',
+            title: { display: true, text: 'Distance (km)', font: { size: 10 } },
+            ticks: { maxTicksLimit: 8, font: { size: 10 } },
+            grid: { display: false }
+          },
+          y: {
+            min: 0, max: 100,
+            title: { display: true, text: 'Signal %', font: { size: 10 } },
+            ticks: { callback: v => v + '%', font: { size: 10 } },
+            grid: { color: 'rgba(0,0,0,0.05)' }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: item => `${item.dataset.label}: ${item.parsed.y !== null ? Math.round(item.parsed.y) + '%' : 'No data'}`
+            }
+          }
+        }
+      }
+    });
+
+    // Legend
+    const legendEl = document.getElementById('ispLegend');
+    legendEl.innerHTML = datasets.map(d =>
+      `<div style="display:flex;align-items:center;gap:5px;">
+        <div style="width:20px;height:4px;border-radius:2px;background:${d.borderColor};"></div>
+        <span style="color:var(--text)">${d.label}</span>
+      </div>`
+    ).join('');
+
+    // Recommendation
+    const recEl = document.getElementById('ispRecommendation');
+    if (isp2 && isp2 !== isp1) {
+      const avg1 = sig1.filter(v => v !== null).reduce((a, b) => a + b, 0) / sig1.filter(v => v !== null).length || 0;
+      const avg2 = this.getISPSignalAlongRoute(isp2).filter(v => v !== null).reduce((a, b) => a + b, 0) / this.getISPSignalAlongRoute(isp2).filter(v => v !== null).length || 0;
+      const winner = avg1 >= avg2 ? isp1 : isp2;
+      const diff = Math.abs(avg1 - avg2).toFixed(0);
+      recEl.style.display = 'block';
+      recEl.innerHTML = `📶 <b>${winner}</b> has better average signal on this route by ~${diff}%. Switch to ${winner} for more reliable connectivity.`;
+    } else {
+      recEl.style.display = 'none';
+    }
+
+    document.getElementById('ispCompareSection').style.display = 'block';
+  },
+
+
+  async toggleHeatmap() {
+    const cb = document.getElementById('tog-heatmap');
+    this.heatmapVisible = cb.checked;
+    if (!this.heatmapVisible) {
+      if (this.layers.heatmapLayer) { this.map.removeLayer(this.layers.heatmapLayer); this.layers.heatmapLayer = null; }
+      return;
+    }
+    if (!this.routes.length) { alert('Calculate a route first'); cb.checked = false; this.heatmapVisible = false; return; }
+    await this.fetchTowerData();
+    const nearby = this.towersNearRoute(0.5);
+    if (!nearby.length) { alert('No towers found near this route'); cb.checked = false; this.heatmapVisible = false; return; }
+    if (this.layers.heatmapLayer) { this.map.removeLayer(this.layers.heatmapLayer); this.layers.heatmapLayer = null; }
+    const heatData = nearby.map(t => {
+      const intensity = Math.max(0, Math.min(1, (t.signal_dbm + 120) / 60));
+      return [t.lat, t.lng, intensity];
+    });
+    this.layers.heatmapLayer = L.heatLayer(heatData, { radius: 25, blur: 35, maxZoom: 17, max: 1.0,
+      gradient: { 0.0: 'blue', 0.25: 'cyan', 0.5: 'lime', 0.75: 'yellow', 1.0: 'red' }
+    }).addTo(this.map);
+  },
+
+
+  highlightRoute() {
+    // Fade inactive gray polylines
+    this.layers.routes.forEach(({ layer, routeIdx }) => {
+      layer.setStyle({ opacity: routeIdx === this.activeRoute ? 0 : 0.35 });
+    });
+
+    // Redraw heatmap for new active route
+    this.layers.heatmap.forEach(l => this.map.removeLayer(l));
+    this.layers.heatmap = [];
+    this.drawHeatmap(this.activeRoute);
+
+    this._renderDropZoneMarkers();
+  },
+  
+  renderCharts() {
+    this.renderTimeline();
+    this.renderTradeoff();
+  },
+  
+  renderTimeline() {
+    const route = this.routes[this.activeRoute];
+
+    if (!route || !route.segments) return;
+
+    const scores = route.segments.map(s => s.signalPct || 0);
+    const labels = scores.map((_, i) =>
+      parseFloat(((i / scores.length) * route.distance).toFixed(2))
+    );
+
+    if (this.charts.timeline) this.charts.timeline.destroy();
+
+    const ctx = document.getElementById('timelineChart').getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 180);
+    gradient.addColorStop(0, 'rgba(74,144,226,0.3)');
+    gradient.addColorStop(1, 'rgba(74,144,226,0)');
+
+    this.charts.timeline = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: scores,
+          borderColor: '#4A90E2',
+          borderWidth: 2,
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.4,
+          spanGaps: true,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          pointBackgroundColor: scores.map(v =>
+            v >= 70 ? '#52C41A' : v >= 40 ? '#FF9500' : '#FF4D4F'
+          ),
+          pointHoverBackgroundColor: '#4A90E2',
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: {
+            type: 'linear',
+            title: { display: true, text: 'Distance (km)', font: { size: 10 } },
+            ticks: { maxTicksLimit: 8, font: { size: 10 } },
+            grid: { display: false }
+          },
+          y: {
+            min: 0,
+            max: 100,
+            title: { display: true, text: 'Signal Strength', font: { size: 10 } },
+            ticks: { callback: v => v + '%', font: { size: 10 } },
+            grid: { color: 'rgba(0,0,0,0.05)' }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (item) => {
+                const v = item.parsed.y;
+                const quality = v >= 70 ? 'Strong' : v >= 40 ? 'Moderate' : 'Weak';
+                return `Signal: ${v}% (${quality})`;
+              }
+            }
+          }
+        }
+      }
+    });
+  },
+  
+  renderTradeoff() {
+    if (this.charts.tradeoff) this.charts.tradeoff.destroy();
+    
+    const colors = ['#4A90E2', '#52C41A', '#FF9500'];
+    const datasets = this.routes.map((r, idx) => ({
+      label: r.type.toUpperCase(),
+      data: [{
+        x: r.eta,
+        y: Math.round(r.connectivity_score || 50),
+        r: Math.sqrt(r.distance) * 2
+      }],
+      backgroundColor: colors[idx] + '44',
+      borderColor: colors[idx],
+      borderWidth: 2
+    }));
+    
+    const ctx = document.getElementById('tradeoffChart').getContext('2d');
+    this.charts.tradeoff = new Chart(ctx, {
+      type: 'bubble',
+      data: { datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            title: { display: true, text: 'Time (min)' },
+            ticks: { font: { size: 10 } }
+          },
+          y: {
+            min: 0,
+            max: 100,
+            title: { display: true, text: 'Signal %' },
+            ticks: { callback: v => v + '%', font: { size: 10 } }
+          }
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 10 } } }
+        }
+      }
+    });
+  },
+  
+  startSim() {
+    if (this.simulator.active && !this.simulator.paused) return;
+    
+    this.simulator.active = true;
+    this.simulator.paused = false;
+    document.getElementById('simPlay').style.display = 'none';
+    document.getElementById('simPause').style.display = 'block';
+    
+    const route = this.routes[this.activeRoute];
+    const totalSec = route.eta * 60;
+    
+    this.simulator.interval = setInterval(() => {
+      this.simulator.progress += (100 / totalSec) * this.simulator.speed * 0.1;
+      
+      if (this.simulator.progress >= 100) {
+        this.simulator.progress = 100;
+        this.pauseSim();
+      }
+      
+      this.updateSim();
+    }, 100);
+  },
+  
+  pauseSim() {
+    this.simulator.paused = true;
+    clearInterval(this.simulator.interval);
+    document.getElementById('simPlay').style.display = 'block';
+    document.getElementById('simPause').style.display = 'none';
+  },
+  
+  resetSim() {
+    this.pauseSim();
+    this.simulator.progress = 0;
+    this.simulator.active = false;
+    if (this.layers.simMarker) { this.map.removeLayer(this.layers.simMarker); this.layers.simMarker = null; }
+    this.updateSim();
+  },
+  
+  updateSim() {
+    const route = this.routes[this.activeRoute];
+    const prog = this.simulator.progress / 100;
+
+    const segIdx = Math.floor(prog * route.segments.length);
+    const segment = route.segments[Math.min(segIdx, route.segments.length - 1)];
+    const signal = segment.signalPct || 50;
+
+    document.getElementById('gaugeFill').style.width = signal + '%';
+    document.getElementById('gaugeValue').textContent = signal + '%';
+
+    const distCovered = route.distance * prog;
+    const timePassed = route.eta * 60 * prog;
+    const etaRemaining = route.eta * 60 - timePassed;
+
+    document.getElementById('simDist').textContent = distCovered.toFixed(1) + ' km';
+    document.getElementById('simTime').textContent = this.formatTime(timePassed);
+    document.getElementById('simETA').textContent = this.formatTime(etaRemaining);
+
+    // Moving dot on the map
+    const geom = route.geometry;
+    const geomIdx = Math.min(Math.floor(prog * geom.length), geom.length - 1);
+    const pos = geom[geomIdx];
+    if (pos) {
+      const color = this.signalColor(signal);
+      const dotHtml =
+        `<div style="width:18px;height:18px;border-radius:50%;background:${color};` +
+        `border:3px solid white;box-shadow:0 0 0 3px ${color}55,0 2px 8px rgba(0,0,0,0.3);` +
+        `animation:pulse 1.2s infinite;"></div>`;
+      const icon = L.divIcon({ className: '', html: dotHtml, iconSize: [18,18], iconAnchor: [9,9] });
+      if (this.layers.simMarker) {
+        this.layers.simMarker.setLatLng([pos.lat, pos.lng]).setIcon(icon);
+      } else {
+        this.layers.simMarker = L.marker([pos.lat, pos.lng], { icon, zIndexOffset: 1000 }).addTo(this.map);
+      }
+    }
+  },
+  
+  formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `${s}s`;
+  },
+  
+  async fetchAlerts() {
+    try {
+      const res = await fetch(`${MODULE1_URL}/alerts`);
+      const data = await res.json();
+      const list = document.getElementById('alertsList');
+      if (!data.alerts || data.alerts.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:#8C8C8C;font-size:13px;">No alerts yet</div>';
+        return;
+      }
+      list.innerHTML = data.alerts.map(a => `
+        <div class="alert-item" id="alert-item-${a.id}" onclick="App.toggleAlertPin(${a.id}, ${a.lat}, ${a.lng})" style="cursor:pointer;">
+          <div class="alert-icon">${a.icon}</div>
+          <div class="alert-content">
+            <div class="alert-title">${a.title}</div>
+            <div class="alert-message">${a.message}</div>
+            <div class="alert-time">📍 ${a.location || 'Unknown location'} · 🕐 ${a.age}</div>
+          </div>
+          <div id="alert-pin-indicator-${a.id}" style="font-size:11px;color:#8C8C8C;align-self:center;">📌</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error('Failed to fetch alerts:', e);
+    }
+  },
+
+  async fetchTowerData() {
+    if (this.towerData.length) return;
+    try {
+      const res = await fetch('http://localhost:8001/grid/geojson');
+      const geojson = await res.json();
+      this.towerData = geojson.features.map(f => ({
+        lat: f.properties.lat,
+        lng: f.properties.lng,
+        signal_dbm: f.properties.avg_dbm,
+        network_type: f.properties.dominant_network,
+        confidence: f.properties.confidence,
+        operator: f.properties.operator || 'Other'
+      }));
+      console.log(`📡 Loaded ${this.towerData.length} towers`);
+      console.log('Sample:', this.towerData[0]);
+    } catch(e) {
+      console.error('Failed to fetch tower data:', e);
+    }
+  },
+
+  haversine(p1, p2) {
+    const R = 6371;
+    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+    const dLng = (p2.lng - p1.lng) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat * Math.PI/180) * Math.cos(p2.lat * Math.PI/180) * Math.sin(dLng/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  },
+
+  towersNearRoute(radiusKm = 0.5) {
+    const route = this.routes[this.activeRoute];
+    if (!route) return [];
+    return this.towerData.filter(t => {
+      for (const p of route.geometry) {
+        if (this.haversine({lat: t.lat, lng: t.lng}, p) < radiusKm) return true;
+      }
+      return false;
+    });
+  },
+
+  openAlertModal() {
+    document.getElementById('alertModal').style.display = 'flex';
+  },
+
+  closeAlertModal() {
+    document.getElementById('alertModal').style.display = 'none';
+  },
+
+  async submitAlert() {
+    const type = document.getElementById('alertType').value;
+    const message = document.getElementById('alertMessage').value.trim();
+    const location = document.getElementById('alertLocation').value.trim();
+    if (!message) { alert('Please describe the issue'); return; }
+    if (!location) { alert('Please enter a location'); return; }
+
+    const titleMap = { no_signal: 'No Signal', '5g_unstable': '5G Unstable', weak_signal: 'Weak Signal', congestion: 'Congestion' };
+
+    // Geocode the location
+    let coords;
+    try {
+      coords = await this.geocode(location + ', Bengaluru');
+      if (!coords) throw new Error();
+    } catch {
+      alert(`Could not find location: "${location}". Try being more specific.`);
+      return;
+    }
+
+    try {
+      await fetch(`${MODULE1_URL}/alerts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type, message,
+          title: titleMap[type] || type,
+          lat: coords.lat,
+          lng: coords.lng,
+          location,
+          severity: 'medium'
+        })
+      });
+      this.closeAlertModal();
+      document.getElementById('alertMessage').value = '';
+      document.getElementById('alertLocation').value = '';
+      await this.fetchAlerts();
+    } catch (e) {
+      alert('Failed to submit alert');
+    }
+  },
+  
+  toggleAlertPin(id, lat, lng) {
+    if (this.layers.alertPins[id]) {
+      this.map.removeLayer(this.layers.alertPins[id]);
+      delete this.layers.alertPins[id];
+      const indicator = document.getElementById(`alert-pin-indicator-${id}`);
+      if (indicator) indicator.style.color = '#8C8C8C';
+      document.getElementById(`alert-item-${id}`).style.background = '';
+    } else {
+      const icon = L.divIcon({
+        className: '',
+        html: '<div style="width:14px;height:14px;background:#FF9500;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+      const marker = L.marker([lat, lng], { icon })
+        .bindPopup(`<b>📢 Community Alert</b><br>${id}`)
+        .addTo(this.map);
+      this.layers.alertPins[id] = marker;
+      const indicator = document.getElementById(`alert-pin-indicator-${id}`);
+      if (indicator) indicator.style.color = '#FF9500';
+      document.getElementById(`alert-item-${id}`).style.background = '#FFF3E0';
+      this.map.panTo([lat, lng]);
+    }
+  },
+
+  clearAllAlertPins() {
+    Object.keys(this.layers.alertPins).forEach(id => {
+      this.map.removeLayer(this.layers.alertPins[id]);
+      const indicator = document.getElementById(`alert-pin-indicator-${id}`);
+      if (indicator) indicator.style.color = '#8C8C8C';
+      const item = document.getElementById(`alert-item-${id}`);
+      if (item) item.style.background = '';
+    });
+    this.layers.alertPins = {};
+  },
+
+  showSidebar() {
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('routeTabs').style.display = 'block';
+    document.getElementById('ispCompareSection').style.display = 'block';
+  }
+};
+
+window.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+  <div id="alertModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:12px;padding:24px;width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+      <div style="font-weight:700;font-size:16px;margin-bottom:16px;">📢 Report an Alert</div>
+      <select id="alertType" style="width:100%;padding:8px;border:1px solid #E8ECF0;border-radius:6px;margin-bottom:10px;font-family:inherit;font-size:13px;">
+        <option value="no_signal">📵 No Signal</option>
+        <option value="5g_unstable">📶 5G Unstable</option>
+        <option value="weak_signal">⚠️ Weak Signal</option>
+        <option value="congestion">🐌 Congestion</option>
+      </select>
+      <input id="alertMessage" type="text" placeholder="Describe the issue..." style="width:100%;padding:8px;border:1px solid #E8ECF0;border-radius:6px;margin-bottom:10px;font-family:inherit;font-size:13px;" />
+      <input id="alertLocation" type="text" placeholder="Location (e.g. Near Silk Board)" style="width:100%;padding:8px;border:1px solid #E8ECF0;border-radius:6px;margin-bottom:10px;font-family:inherit;font-size:13px;" />
+      <div style="font-size:12px;color:#8C8C8C;margin-bottom:10px;">📍 Location will use map center</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="App.submitAlert()" style="flex:1;padding:10px;background:#4A90E2;color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Submit</button>
+        <button onclick="App.closeAlertModal()" style="flex:1;padding:10px;background:#f0f0f0;color:#333;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
